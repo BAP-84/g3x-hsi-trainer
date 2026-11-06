@@ -84,6 +84,16 @@
   .readout .grn { color: var(--vloc); }
   .readout .cy { color: var(--cyan); }
   footer { margin-top: 2px; font-size: 11px; color: var(--muted); text-align: center; }
+  .viewbar { margin: 12px auto 4px; max-width: min(100%, 720px); }
+  .map-panel { display: none; min-width: 0; width: 100%; max-width: min(100%, 720px); margin: 0 auto; }
+  body.show-map .gauge { display: none; }
+  body.show-map .map-panel { display: block; }
+  .map-notes { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 12px 14px; margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .map-notes p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--ink); }
+  .map-notes p span { color: var(--muted); }
+  .map-notes .mag { color: var(--mag); }
+  .map-notes .grn { color: var(--vloc); }
 </style>
 </head>
 <body>
@@ -96,6 +106,17 @@
       <div class="js-needed" id="jsNeeded">The instrument display needs Safari to run.<small>This chat or Files preview blocks it. Tap the Share button, then Open in Safari. After it appears, use Share → Add to Home Screen for offline use.</small></div>
       <canvas id="hsi" width="1000" height="1000"></canvas>
     </div></div>
+    <div class="map-panel" id="mapPanel">
+      <div class="gauge-frame">
+        <canvas id="map" width="1000" height="1000"></canvas>
+      </div>
+      <div class="map-notes" id="mapNotes">
+        <p>Course / radial <b id="nCrs" class="mag">247°</b> — dashed line through the VOR</p>
+        <p>Flag <b id="nFlg">TO</b> <span id="nFlgHint"></span></p>
+        <p>Heading <b id="nHdg">237°</b> — airplane nose points this way</p>
+        <p>CDI <b id="nCdi">CENTER</b> <span id="nCdiHint"></span></p>
+      </div>
+    </div>
     <form class="controls" autocomplete="off">
       <div class="row">
         <label>Navigation source</label>
@@ -187,21 +208,34 @@
       </div>
     </form>
   </div>
+  <div class="viewbar">
+    <label>View</label>
+    <div class="seg" id="viewBar">
+      <button type="button" data-v="hsi" class="on">Instrument</button>
+      <button type="button" data-v="map">Map</button>
+    </div>
+  </div>
   <footer>Works offline. Safari → Share → Add to Home Screen. Magenta = GPS · Green = VLOC · Cyan = heading bug.</footer>
 <script>
 (function () {
   document.body.classList.add('js-on');
   const canvas = document.getElementById('hsi');
   const ctx = canvas.getContext('2d');
-  function sizeCanvas() {
-    const box = canvas.parentElement;
-    const css = Math.max(220, box.clientWidth || canvas.clientWidth || 320);
+  const mapCanvas = document.getElementById('map');
+  const mctx = mapCanvas.getContext('2d');
+  function sizeOne(el) {
+    const box = el.parentElement;
+    const css = Math.max(220, box.clientWidth || el.clientWidth || 320);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const px = Math.max(320, Math.round(css * dpr));
-    if (canvas.width !== px || canvas.height !== px) {
-      canvas.width = px;
-      canvas.height = px;
+    if (el.width !== px || el.height !== px) {
+      el.width = px;
+      el.height = px;
     }
+  }
+  function sizeCanvas() {
+    sizeOne(canvas);
+    sizeOne(mapCanvas);
   }
   const MAG = '#e84cff', GRN = '#2ee66b', CYAN = '#3ad7ff', W = '#ffffff';
   const state = { src: 'GPS', hdg: 237, bug: 0, crs: 247, dir: 'C', dots: 2, vDir: 'OFF', vDots: 2, flag: 'TO' };
@@ -236,6 +270,19 @@
     const v = vdiOff();
     document.getElementById('rVdi').textContent = v === null ? 'HIDDEN' : (v === 0 ? 'CENTER' : (v > 0 ? 'ABOVE ' : 'BELOW ') + Math.abs(v).toFixed(1).replace('.0',''));
     document.getElementById('rFlg').textContent = state.flag === 'OFF' ? 'HIDDEN' : state.flag;
+    const nCol = state.src === 'GPS' ? 'mag' : 'grn';
+    document.getElementById('nCrs').textContent = pad360(state.crs) + '°';
+    document.getElementById('nCrs').className = nCol;
+    document.getElementById('nHdg').textContent = pad360(state.hdg) + '°';
+    document.getElementById('nFlg').textContent = state.flag === 'OFF' ? 'Not displayed' : state.flag;
+    document.getElementById('nFlgHint').textContent = state.flag === 'TO'
+      ? '— station is ahead if you fly the selected course'
+      : (state.flag === 'FROM' ? '— station is behind if you fly the selected course' : '');
+    const cNote = cdiOff();
+    document.getElementById('nCdi').textContent = cNote === 0 ? 'CENTER' : ((cNote < 0 ? 'L ' : 'R ') + Math.abs(cNote).toFixed(1).replace('.0',''));
+    document.getElementById('nCdiHint').textContent = cNote === 0
+      ? '— on the selected course'
+      : (cNote < 0 ? '— airplane is right of the selected course' : '— airplane is left of the selected course');
     document.getElementById('hDotsRow').style.opacity = state.dir === 'C' ? '0.4' : '1';
     document.getElementById('vDotsRow').style.opacity = (state.vDir === 'C' || state.vDir === 'OFF') ? '0.4' : '1';
     try { localStorage.setItem('g3x-hsi-trainer', JSON.stringify(state)); } catch (e) {}
@@ -476,7 +523,109 @@
     ctx.fillStyle = col; ctx.fillText(pad360(state.crs) + '°', W - 36, 54);
   }
 
-  function render() { sizeCanvas(); sync(); draw(); }
+  function planePos(R) {
+    const rad = state.crs * Math.PI / 180;
+    const ux = Math.sin(rad), uy = -Math.cos(rad);
+    const lx = -Math.cos(rad), ly = -Math.sin(rad);
+    const along = R * 0.55;
+    const side = (state.flag === 'FROM' ? 1 : -1);
+    const lat = cdiOff() * R * 0.13;
+    return { x: side * along * ux + lat * lx, y: side * along * uy + lat * ly };
+  }
+
+  function drawMap() {
+    const W = mapCanvas.width, H = mapCanvas.height;
+    const cx = W * 0.50, cy = H * 0.52, R = W * 0.36;
+    const col = navColor();
+    mctx.clearRect(0, 0, W, H);
+    const bg = mctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#17362c'); bg.addColorStop(0.5, '#2f5a28'); bg.addColorStop(1, '#1d3d18');
+    mctx.fillStyle = bg; mctx.fillRect(0, 0, W, H);
+    mctx.fillStyle = 'rgba(4,12,10,0.28)'; mctx.fillRect(0, 0, W, H);
+
+    mctx.save();
+    mctx.translate(cx, cy);
+
+    mctx.beginPath(); mctx.arc(0, 0, R + 18, 0, Math.PI * 2);
+    mctx.strokeStyle = 'rgba(255,255,255,0.22)'; mctx.lineWidth = 2; mctx.stroke();
+
+    const quads = [[0, '360'], [90, '090'], [180, '180'], [270, '270']];
+    mctx.lineCap = 'round';
+    quads.forEach(([deg, label]) => {
+      const a = deg * Math.PI / 180;
+      const x = Math.sin(a), y = -Math.cos(a);
+      mctx.beginPath();
+      mctx.moveTo(x * -R, y * -R);
+      mctx.lineTo(x * R, y * R);
+      mctx.strokeStyle = 'rgba(255,255,255,0.78)';
+      mctx.lineWidth = 3;
+      mctx.setLineDash([]);
+      mctx.stroke();
+      mctx.font = '700 28px -apple-system, Helvetica, sans-serif';
+      mctx.fillStyle = '#ffffff';
+      mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
+      mctx.strokeStyle = 'rgba(0,0,0,0.55)'; mctx.lineWidth = 6;
+      mctx.strokeText(label, x * (R + 36), y * (R + 36));
+      mctx.fillText(label, x * (R + 36), y * (R + 36));
+    });
+
+    const ca = state.crs * Math.PI / 180;
+    const cxu = Math.sin(ca), cyu = -Math.cos(ca);
+    mctx.beginPath();
+    mctx.moveTo(cxu * -(R + 8), cyu * -(R + 8));
+    mctx.lineTo(cxu * (R + 8), cyu * (R + 8));
+    mctx.strokeStyle = col;
+    mctx.lineWidth = 4;
+    mctx.setLineDash([16, 11]);
+    mctx.stroke();
+    mctx.setLineDash([]);
+    // arrowhead on the selected-course / radial end (FROM side)
+    const ax = cxu * (R + 8), ay = cyu * (R + 8);
+    const px = -cyu, py = cxu;
+    mctx.beginPath();
+    mctx.moveTo(ax + cxu * 18, ay + cyu * 18);
+    mctx.lineTo(ax - cxu * 6 + px * 12, ay - cyu * 6 + py * 12);
+    mctx.lineTo(ax - cxu * 6 - px * 12, ay - cyu * 6 - py * 12);
+    mctx.closePath();
+    mctx.fillStyle = col;
+    mctx.fill();
+
+    // VOR
+    mctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * 60 - 90) * Math.PI / 180;
+      const x = Math.cos(a) * 18, y = Math.sin(a) * 18;
+      if (i === 0) mctx.moveTo(x, y); else mctx.lineTo(x, y);
+    }
+    mctx.closePath();
+    mctx.fillStyle = '#1a1a1a';
+    mctx.fill();
+    mctx.lineWidth = 3;
+    mctx.strokeStyle = '#f0c14b';
+    mctx.stroke();
+    mctx.beginPath(); mctx.arc(0, 0, 4, 0, Math.PI * 2);
+    mctx.fillStyle = '#f0c14b'; mctx.fill();
+    mctx.font = '700 16px -apple-system, Helvetica, sans-serif';
+    mctx.fillStyle = '#f0c14b';
+    mctx.textAlign = 'center'; mctx.textBaseline = 'top';
+    mctx.fillText('VOR', 0, 24);
+
+    const pos = planePos(R);
+    mctx.save();
+    mctx.translate(pos.x, pos.y);
+    mctx.rotate(state.hdg * Math.PI / 180);
+    mctx.fillStyle = '#ffffff';
+    mctx.strokeStyle = '#0b1a14';
+    mctx.lineWidth = 3;
+    airplane(mctx, 1.05);
+    mctx.fill();
+    mctx.stroke();
+    mctx.restore();
+
+    mctx.restore();
+  }
+
+  function render() { sizeCanvas(); sync(); draw(); drawMap(); }
 
   document.querySelectorAll('.stepper button').forEach(b => {
     b.addEventListener('click', () => {
@@ -517,6 +666,13 @@
     if (!b) return;
     e.preventDefault();
     applySeg(b.parentElement, b);
+  });
+  document.getElementById('viewBar').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    document.querySelectorAll('#viewBar button').forEach(x => x.classList.toggle('on', x === b));
+    document.body.classList.toggle('show-map', b.dataset.v === 'map');
+    render();
   });
 
   try {
