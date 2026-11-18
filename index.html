@@ -805,6 +805,88 @@
     return { entry, inbound, outbound, teardrop, d, nearBoundary: edge <= 5 };
   }
   window.HoldCalc = { holdEntry };
+  // ---- Entry path geometry: constant-radius arcs joined by tangent straight lines ----
+  // Course frame: fix at origin, inbound course points to +y ("north"), headings in degrees clockwise from +y.
+  // Right turns hold on +x, left turns on -x. R = standard-rate radius, a 1-minute leg = pi * R.
+  function buildEntryPath(hdg, radial, turns, R, approach) {
+    const res = holdEntry(hdg, radial, turns);
+    const H = turns === 'L' ? -1 : 1;                 // holding turn direction (+1 right)
+    const Lg = Math.PI * R;
+    const m360 = a => ((a % 360) + 360) % 360;
+    const sn = a => Math.sin(a * Math.PI / 180), cs = a => Math.cos(a * Math.PI / 180);
+    const segs = [];
+    const th0 = res.d;                                 // arrival heading relative to the inbound course
+    let cur = { x: -approach * sn(th0), y: -approach * cs(th0), th: th0 };
+    function line(len) {
+      if (len <= 1e-9) return;
+      segs.push({ k: 'L', x: cur.x, y: cur.y, th: cur.th, len });
+      cur = { x: cur.x + len * sn(cur.th), y: cur.y + len * cs(cur.th), th: cur.th };
+    }
+    function arc(D, sweep) {
+      if (sweep <= 1e-9) return;
+      const cx = cur.x + D * R * cs(cur.th), cy = cur.y - D * R * sn(cur.th);
+      segs.push({ k: 'A', cx, cy, D, th: cur.th, sweep, len: R * sweep * Math.PI / 180 });
+      const th = cur.th + D * sweep;
+      cur = { x: cx - D * R * cs(th), y: cy + D * R * sn(th), th: m360(th) };
+    }
+    const turnTo = (D, target) => { let s = m360(D * (target - cur.th)); if (s > 359.999) s = 0; arc(D, s); };
+    // Join the inbound course (x = 0, heading 000) with turn direction D first, then fly to the fix.
+    function joinInbound(D) {
+      const c1x = cur.x + D * R * cs(cur.th);
+      const q = D * c1x, A45 = 45;
+      let th, alpha, sLen, rollD;
+      if (q >= R - 1e-9) {                     // roll out in the same direction, intercepting from the D side
+        alpha = Math.abs(q - R) < 1e-6 ? 0 : A45;
+        th = -D * alpha; rollD = D;
+        sLen = alpha === 0 ? 0 : (q - R) / sn(alpha);
+      } else {                                 // overshoot side: turn through, then roll out the other way
+        const lim = R * (2 * cs(A45) - 1);
+        if (q <= lim) { alpha = A45; sLen = (-R + 2 * R * cs(alpha) - q) / sn(alpha); }
+        else { alpha = Math.acos(Math.min(1, (R + q) / (2 * R))) * 180 / Math.PI; sLen = 0; }
+        th = D * alpha; rollD = -D;
+      }
+      turnTo(D, m360(th));
+      line(sLen);
+      arc(rollD, alpha);
+      cur.x = Math.abs(cur.x) < 1e-6 ? 0 : cur.x; cur.th = m360(cur.th);
+      const rollY = cur.y;
+      line(-cur.y);                            // straight in to the fix
+      return rollY;
+    }
+    line(approach);                            // arrive on present heading and cross the fix
+    let legTh = 180, kind = res.entry, rollY;
+    if (kind === 'DIRECT') {
+      turnTo(H, 180);                          // turn in the holding direction to the outbound heading
+      line(Math.max(0, cur.y + Lg));           // outbound until abeam the end of a 1-minute pattern
+      rollY = joinInbound(H);
+    } else if (kind === 'TEARDROP') {
+      const td = 180 - H * 30;                 // 30 degrees toward the holding side
+      const sw = m360(td - cur.th);
+      arc(sw <= 180 ? 1 : -1, sw <= 180 ? sw : 360 - sw);   // shortest turn to the teardrop heading
+      // about 1 minute: choose the leg so the holding-direction turn rolls out on the inbound course, kept to 0.75-1.5 min
+      const need = (H * R - cur.x - H * R * cs(td)) / sn(td);
+      line(Math.min(1.5 * Lg, Math.max(0.75 * Lg, need)));
+      legTh = td;
+      rollY = joinInbound(H);
+    } else {
+      turnTo(-H, 180);                         // opposite the holding direction to the outbound heading (non-holding side)
+      line(Lg);                                // 1 minute outbound
+      rollY = joinInbound(-H);                 // turn toward the holding side (>180) to intercept
+    }
+    let total = 0; segs.forEach(s => { s.s0 = total; total += s.len; });
+    return { segs, total, R, Lg, H, res, rollY, approach };
+  }
+  function pathPoint(p, s) {
+    s = Math.max(0, Math.min(p.total, s));
+    let g = p.segs[p.segs.length - 1];
+    for (const sg of p.segs) if (s <= sg.s0 + sg.len) { g = sg; break; }
+    const t = s - g.s0, r = Math.PI / 180;
+    if (g.k === 'L') return { x: g.x + t * Math.sin(g.th * r), y: g.y + t * Math.cos(g.th * r), th: g.th, seg: g };
+    const th = g.th + g.D * (t / p.R) / r;
+    return { x: g.cx - g.D * p.R * Math.cos(th * r), y: g.cy + g.D * p.R * Math.sin(th * r), th: ((th % 360) + 360) % 360, seg: g };
+  }
+  window.HoldCalc.buildEntryPath = buildEntryPath;
+  window.HoldCalc.pathPoint = pathPoint;
 
   const cv = document.getElementById('holdCv');
   if (!cv) return;
@@ -814,7 +896,13 @@
 
   const COL = { DIRECT: '#1f9d4a', TEARDROP: '#e08a00', PARALLEL: '#1a8fc4' };
   const FILL = { DIRECT: 'rgba(46,200,100,0.20)', TEARDROP: 'rgba(255,170,30,0.26)', PARALLEL: 'rgba(40,170,230,0.22)' };
-  let geom = null, dashT = 0, animOn = false;
+  let geom = null, animOn = false, animT0 = performance.now(), frozen = null;
+  // constant ground speed along the path: a standard-rate 180 takes about 1.3 s on screen, then a short pause at the fix
+  function animS(total, R) {
+    if (frozen !== null) return total * frozen;
+    const per = 1000 * total / (2.4 * R), pause = 1200, t = (performance.now() - animT0) % (per + pause);
+    return total * Math.min(1, t / per);
+  }
 
   function size() {
     const css = Math.max(220, cv.parentElement.clientWidth || 320);
@@ -942,7 +1030,7 @@
     ctx.restore();
 
     // ---- holding overlay (rotates to the radial) ----
-    const Lg = F * 0.46, w = F * 0.2, sd = L ? 1 : -1;   // sd: holding side (+x left-turn, -x right-turn) in overlay frame
+    const TR = F * 0.15, Lg = Math.PI * TR, w = 2 * TR, sd = L ? 1 : -1;   // TR: standard-rate turn radius; 1-minute legs = pi*TR   // sd: holding side (+x left-turn, -x right-turn) in overlay frame
     const toS = (x, y) => { const c = Math.cos(rad(rho)), sn = Math.sin(rad(rho)); return { x: x * c - y * sn, y: x * sn + y * c }; };
     ctx.save(); ctx.rotate(rad(rho));
     // translucent overlay disk
@@ -977,44 +1065,28 @@
     ctx.beginPath(); ctx.arc(0, 0, 13 * u, 0, Math.PI * 2); ctx.fillStyle = '#1b2533'; ctx.fill();
     ctx.beginPath(); ctx.arc(0, 0, 5 * u, 0, Math.PI * 2); ctx.fillStyle = '#d9d2bd'; ctx.fill();
 
-    // ---- entry path (aircraft-heading frame) ----
+    // ---- entry path: constant-radius arcs + tangent lines, built in the course frame ----
     if (hs.path) {
-      const pts = [];
-      const air = { x: 0, y: F * 0.80 - 40 * u };
-      const arrL = (() => { const c = Math.cos(rad(-rho)), sn = Math.sin(rad(-rho)); return { x: 0 * c - (-1) * sn, y: 0 * sn + (-1) * c }; })(); // screen-up in overlay frame
-      const k = F * 0.22;
-      const segs = [];   // cubic segments in overlay frame
-      const P = (x, y) => ({ x, y });
-      if (res.entry === 'DIRECT') {
-        const xi = sd * w * 0.78, yi = -Lg * 0.9, A = P(xi, -Lg * 0.25);
-        segs.push([P(0, 0), P(arrL.x * k, arrL.y * k), P(A.x, A.y + k), A]);
-        segs.push([A, A, P(xi, yi), P(xi, yi)]);
-        segs.push([P(xi, yi), P(xi, yi - w * 0.55), P(sd * w * 0.12, yi - w * 0.55), P(sd * w * 0.12, yi)]);
-        segs.push([P(sd * w * 0.12, yi), P(sd * w * 0.12, yi), P(sd * w * 0.04, -Lg * 0.1), P(0, 0)]);
-      } else if (res.entry === 'TEARDROP') {
-        const dir = P(sd * Math.sin(rad(30)), -Math.cos(rad(30)));
-        const T0 = P(dir.x * F * 0.12, dir.y * F * 0.12), T1 = P(dir.x * Lg * 1.05, dir.y * Lg * 1.05);
-        segs.push([P(0, 0), P(arrL.x * k, arrL.y * k), P(T0.x - dir.x * k * 0.5, T0.y - dir.y * k * 0.5), T0]);
-        segs.push([T0, T0, T1, T1]);
-        const E = P(0, -Lg * 0.55);
-        segs.push([T1, P(T1.x + dir.x * k, T1.y + dir.y * k), P(-sd * w * 0.25, E.y - k * 1.1), E]);
-        segs.push([E, E, P(0, 0), P(0, 0)]);
-      } else {
-        const x = -sd * w * 0.6, Q = P(x, -Lg * 0.25), Q2 = P(x, -Lg);
-        segs.push([P(0, 0), P(arrL.x * k, arrL.y * k), P(Q.x, Q.y + k), Q]);
-        segs.push([Q, Q, Q2, Q2]);
-        const E = P(sd * w * 0.05, -Lg * 0.35);
-        segs.push([Q2, P(x, -Lg - k), P(sd * w * 1.1, -Lg - k * 0.2), P(sd * w * 0.35, -Lg * 0.6)]);
-        segs.push([P(sd * w * 0.35, -Lg * 0.6), P(sd * w * 0.2, -Lg * 0.5), P(0, -Lg * 0.38), P(0, -Lg * 0.25)]);
-        segs.push([P(0, -Lg * 0.25), P(0, -Lg * 0.25), P(0, 0), P(0, 0)]);
-      }
+      const P = buildEntryPath(hs.hdg, hs.rad, hs.turns, TR, F * 0.80 - 40 * u);
+      const dd = rad(res.d), cD = Math.cos(dd), sD = Math.sin(dd);
+      const scr = q => ({ x: q.x * cD - q.y * sD, y: -(q.y * cD + q.x * sD) });   // course frame -> heading-up screen
       const col = res.entry === 'DIRECT' ? '#14a84a' : res.entry === 'TEARDROP' ? '#f08c00' : '#0f8fd0';
-      ctx.beginPath(); ctx.moveTo(air.x, air.y); ctx.lineTo(0, 0);
-      segs.forEach(sg => { const b = toS(sg[1].x, sg[1].y), c = toS(sg[2].x, sg[2].y), d = toS(sg[3].x, sg[3].y); ctx.bezierCurveTo(b.x, b.y, c.x, c.y, d.x, d.y); });
+      const step = 2 * u, n = Math.ceil(P.total / step);
+      const pts = []; for (let i = 0; i <= n; i++) pts.push(scr(pathPoint(P, P.total * i / n)));
+      const sNow = animS(P.total, TR);
+      const k = Math.round(n * sNow / P.total);
+      const trace = (a, b) => { ctx.beginPath(); ctx.moveTo(pts[a].x, pts[a].y); for (let i = a + 1; i <= b; i++) ctx.lineTo(pts[i].x, pts[i].y); };
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      ctx.lineWidth = 8 * u; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.setLineDash([]); ctx.stroke();
-      ctx.lineWidth = 4.5 * u; ctx.strokeStyle = col; ctx.setLineDash([18 * u, 12 * u]); ctx.lineDashOffset = -dashT * u; ctx.stroke();
-      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      trace(0, n); ctx.lineWidth = 7 * u; ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.stroke();
+      ctx.lineWidth = 3.5 * u; ctx.strokeStyle = col; ctx.setLineDash([14 * u, 10 * u]); ctx.stroke(); ctx.setLineDash([]);
+      if (k > 0) { trace(0, k); ctx.lineWidth = 5.5 * u; ctx.strokeStyle = col; ctx.stroke(); }
+      const ap = pathPoint(P, sNow), sp = scr(ap);
+      ctx.save(); ctx.translate(sp.x, sp.y); ctx.rotate(rad(ap.th - res.d));
+      const z = 0.62 * u; ctx.beginPath();
+      [[0,-34],[5,-10],[30,8],[30,15],[5,6],[5,22],[14,32],[14,37],[0,30],[-14,37],[-14,32],[-5,22],[-5,6],[-30,15],[-30,8],[-5,-10]]
+        .forEach(([x, y], i) => i ? ctx.lineTo(x * z, y * z) : ctx.moveTo(x * z, y * z));
+      ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2 * u; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+      ctx.restore();
     }
     ctx.restore();
 
@@ -1061,7 +1133,7 @@
   function render() { if (!visible()) return; sync(draw()); }
   function tick() {
     if (!visible() || !hs.path) { animOn = false; return; }
-    dashT = (dashT + 1.2) % 3000; draw(); requestAnimationFrame(tick);
+    draw(); requestAnimationFrame(tick);
   }
   function startAnim() { if (!animOn && visible() && hs.path) { animOn = true; requestAnimationFrame(tick); } }
   function update() { render(); startAnim(); }
@@ -1125,6 +1197,7 @@
   window.addEventListener('resize', render);
   window.addEventListener('orientationchange', () => setTimeout(render, 250));
   window.HoldCalc.render = update;
+  window.HoldCalc.freeze = f => { frozen = (f === null || f === undefined) ? null : f; render(); };
   window.HoldCalc.state = hs;
 })();
 </script>
