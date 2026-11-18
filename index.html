@@ -177,17 +177,17 @@
         <div>
           <label for="hdg">Current heading</label>
           <div class="stepper">
-            <button type="button" data-field="hdg" data-d="-1">−</button>
+            <button type="button" data-field="hdg" data-d="-5">−</button>
             <input id="hdg" type="number" inputmode="numeric" min="1" max="360" step="1" value="237">
-            <button type="button" data-field="hdg" data-d="1">+</button>
+            <button type="button" data-field="hdg" data-d="5">+</button>
           </div>
         </div>
         <div>
           <label for="crs">Selected course</label>
           <div class="stepper">
-            <button type="button" data-field="crs" data-d="-1">−</button>
+            <button type="button" data-field="crs" data-d="-5">−</button>
             <input id="crs" type="number" inputmode="numeric" min="1" max="360" step="1" value="247">
-            <button type="button" data-field="crs" data-d="1">+</button>
+            <button type="button" data-field="crs" data-d="5">+</button>
           </div>
         </div>
       </div>
@@ -279,7 +279,6 @@
           </div>
         </div>
       </div>
-      <p class="hint">Drag the blue card to set heading under the top arrow. Drag the red tab (or the pattern) to set the holding radial. − / + steps 5°, or type an exact value.</p>
       <div class="entry-card">
         <div class="lbl">Entry</div>
         <div class="big direct" id="hEntry">DIRECT</div>
@@ -401,6 +400,13 @@
     c.restore();
   }
   window.drawTrainer = drawTrainer;
+  // 5-degree drag snapping with a little hysteresis so the value doesn't flicker at a boundary
+  function snap5(raw, cur) {
+    const d = ((raw - cur) % 360 + 540) % 360 - 180;
+    if (cur % 5 === 0 && Math.abs(d) < 3.25) return cur;
+    return (((Math.round(raw / 5) * 5) % 360) + 360) % 360;
+  }
+  window.snap5 = snap5;
 
   function draw() {
     const W = canvas.width, H = canvas.height;
@@ -695,7 +701,11 @@
 
   document.querySelectorAll('.controls .stepper button').forEach(b => {
     b.addEventListener('click', () => {
-      state[b.dataset.field] = wrap(state[b.dataset.field] + Number(b.dataset.d));
+      const f = b.dataset.field, dlt = Number(b.dataset.d);
+      let v = state[f] + dlt;
+      v = dlt > 0 ? Math.floor(v / 5) * 5 : Math.ceil(v / 5) * 5;   // land on multiples of 5
+      if (v === state[f]) v += dlt;
+      state[f] = wrap(v);
       render();
     });
   });
@@ -755,14 +765,15 @@
   canvas.addEventListener('pointerdown', e => {
     if (e.button !== undefined && e.button > 0) return;
     const p = hsiPtr(e);
-    hsiDrag = { mode: p.r > p.R ? 'hdg' : 'crs', a0: p.a, v0: p.r > p.R ? state.hdg : state.crs };
+    hsiDrag = { mode: p.r > p.R ? 'hdg' : 'crs', last: p.a, acc: 0, v0: p.r > p.R ? state.hdg : state.crs };
     canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; e.preventDefault();
   });
   canvas.addEventListener('pointermove', e => {
     if (!hsiDrag) return;
-    const d = hsiDiff(hsiPtr(e).a, hsiDrag.a0);
-    if (hsiDrag.mode === 'hdg') state.hdg = wrap(hsiDrag.v0 - d);   // card follows the finger
-    else state.crs = wrap(hsiDrag.v0 + d);                           // course pointer follows the finger
+    const a = hsiPtr(e).a;
+    hsiDrag.acc += hsiDiff(a, hsiDrag.last); hsiDrag.last = a;       // accumulate, so long drags never jump
+    if (hsiDrag.mode === 'hdg') state.hdg = snap5(hsiDrag.v0 - hsiDrag.acc, state.hdg);   // card follows the finger
+    else state.crs = snap5(hsiDrag.v0 + hsiDrag.acc, state.crs);                         // course pointer follows the finger
     render(); e.preventDefault();
   });
   const hsiEnd = () => { if (hsiDrag) { hsiDrag = null; canvas.style.cursor = ''; render(); } };
@@ -1186,19 +1197,22 @@
     if (!geom) return;
     const p = ptr(e);
     const tabA = norm360(hs.rad - hs.hdg);
-    if (p.r > geom.Rc + 40 * geom.u || p.r < geom.F * 0.12) return;
+    if (p.r < geom.F * 0.12) return;   // everything outside the cream face (ring, margins, corners) turns the heading
     const nearTab = Math.abs(angDiff(p.a, tabA)) < 14 && p.r > geom.F * 0.7;
     if (nearTab) drag = { mode: 'tab' };
-    else if (p.r >= geom.Ri - 6 * geom.u) drag = { mode: 'card', a0: p.a, v0: hs.hdg };
-    else drag = { mode: 'overlay', a0: p.a, v0: hs.rad };
+    else if (p.r >= geom.Ri - 6 * geom.u) drag = { mode: 'card', last: p.a, acc: 0, v0: hs.hdg };
+    else drag = { mode: 'overlay', last: p.a, acc: 0, v0: hs.rad };
     cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; e.preventDefault();
   });
   cv.addEventListener('pointermove', e => {
     if (!drag) return;
     const p = ptr(e);
-    if (drag.mode === 'tab') hs.rad = norm360(hs.hdg + p.a);
-    else if (drag.mode === 'card') hs.hdg = norm360(drag.v0 - angDiff(p.a, drag.a0));
-    else hs.rad = norm360(drag.v0 + angDiff(p.a, drag.a0));
+    if (drag.mode === 'tab') hs.rad = window.snap5(hs.hdg + p.a, hs.rad);
+    else {
+      drag.acc += angDiff(p.a, drag.last); drag.last = p.a;
+      if (drag.mode === 'card') hs.hdg = window.snap5(drag.v0 - drag.acc, hs.hdg);
+      else hs.rad = window.snap5(drag.v0 + drag.acc, hs.rad);
+    }
     sync(draw()); e.preventDefault();
   });
   const end = () => { if (drag) { drag = null; cv.style.cursor = ''; update(); } };
