@@ -91,7 +91,8 @@
   .readout .grn { color: var(--vloc); }
   .readout .cy { color: var(--cyan); }
   footer { margin-top: 2px; font-size: 11px; color: var(--muted); text-align: center; }
-  .viewbar { margin: 12px auto 4px; max-width: min(100%, 720px); }
+  .viewbar { margin: 12px auto 4px; width: min(100%, 360px); }
+  .viewbar .seg button { flex: 1 1 0; padding: 10px 6px; }
   .map-panel { display: none; min-width: 0; width: 100%; max-width: min(100%, 720px); margin: 0 auto; }
   body.show-map .gauge { display: none; }
   body.show-map .map-panel { display: block; }
@@ -294,9 +295,9 @@
   <div class="viewbar">
     <label>View</label>
     <div class="seg" id="viewBar">
-      <button type="button" data-v="hsi" class="on">Instrument</button>
+      <button type="button" data-v="hsi" class="on">HSI</button>
       <button type="button" data-v="map">Map</button>
-      <button type="button" data-v="hold">Holding Entry</button>
+      <button type="button" data-v="hold">Holding</button>
     </div>
   </div>
   <footer>Works offline. Safari → Share → Add to Home Screen. Magenta = GPS · Green = VLOC.</footer>
@@ -778,7 +779,20 @@
   setTimeout(render, 100);
   setTimeout(render, 500);
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function () {});
+    // Updates: the SW serves index.html network-first (bypassing the HTTP cache), skips waiting and claims clients.
+    // When a new SW takes over a page that was already controlled, reload once so the fresh copy shows immediately.
+    let lastController = navigator.serviceWorker.controller, reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      const prev = lastController; lastController = navigator.serviceWorker.controller;
+      if (!prev || reloaded) return;          // first install: nothing stale on screen
+      reloaded = true; location.reload();
+    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+      reg.update().catch(function () {});
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') reg.update().catch(function () {});
+      });
+    }).catch(function () {});
   }
 })();
 </script>
