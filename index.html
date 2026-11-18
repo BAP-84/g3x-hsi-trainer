@@ -524,11 +524,12 @@
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
 
     // lubber / heading index at top
-    // fixed white triangle pointing down at the card (G3X style), thin dark outline for contrast
+    // heading index: fixed white triangle pointing down at the card (G3X style), thin dark outline for contrast
     ctx.beginPath();
-    ctx.moveTo(0, -R + 6);
-    ctx.lineTo(15.5, -R - 28);
-    ctx.lineTo(-15.5, -R - 28);
+    // the original lubber arrow, inverted and moved just outside the card edge (tip 2px above the ring)
+    ctx.moveTo(0, -R - 2);
+    ctx.lineTo(14, -R - 32);
+    ctx.lineTo(-14, -R - 32);
     ctx.closePath();
     ctx.lineJoin = 'round';
     ctx.lineWidth = 3; ctx.strokeStyle = '#0b1a14'; ctx.stroke();
