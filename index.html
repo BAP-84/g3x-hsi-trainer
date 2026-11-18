@@ -47,6 +47,7 @@
   .drag-note b { font-weight: 650; color: #b9c9c0; }
   .drag-note b.hd { color: var(--ink); }
   .drag-note b.cs { color: var(--mag); }
+  .drag-note b.rd { color: #ff5a4e; }
   body.src-vloc .drag-note b.cs { color: var(--vloc); }
   .gauge { position: relative; z-index: 0; max-width: min(100%, 720px); margin: 0 auto; }
   .gauge-frame {
@@ -249,7 +250,9 @@
   <div class="hold-panel" id="holdPanel">
     <div class="hold-gauge"><div class="gauge-frame">
       <canvas id="holdCv" class="hold-cv" width="1000" height="1000"></canvas>
-    </div></div>
+    </div>
+    <p class="drag-note"><span>Drag <b>outside</b> the compass ring to turn the <b class="hd">heading</b></span><span class="sep"> · </span><span>Drag <b>inside</b> it to set the <b class="rd">radial</b></span></p>
+    </div>
     <div class="hold-controls">
       <div class="row">
         <label>Holding turns</label>
