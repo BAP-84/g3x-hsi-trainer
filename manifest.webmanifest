@@ -1,6 +1,6 @@
 {
   "name": "Electronic Instrument Training Aid",
-  "short_name": "Instrument Aid",
+  "short_name": "Trainer",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
