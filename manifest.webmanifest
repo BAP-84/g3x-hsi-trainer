@@ -1,12 +1,16 @@
 {
-  "name": "G3X HSI Trainer",
-  "short_name": "G3X HSI",
+  "name": "Electronic Instrument Training Aid",
+  "short_name": "Instrument Aid",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0a1210",
   "theme_color": "#0a1210",
   "icons": [
-    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
   ]
 }

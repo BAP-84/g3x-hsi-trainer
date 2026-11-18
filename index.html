@@ -6,11 +6,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="G3X HSI">
+<meta name="apple-mobile-web-app-title" content="Instrument Aid">
 <meta name="theme-color" content="#0a1210">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>G3X HSI Trainer</title>
+<title>Electronic Instrument Training Aid</title>
 <style>
   :root {
     --bg: #07110e;
@@ -33,9 +33,8 @@
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
   body { display: flex; flex-direction: column; overflow-x: hidden; padding: calc(10px + var(--safe)) 12px calc(14px + var(--safeb));
     padding-left: calc(12px + var(--safel)); padding-right: calc(12px + var(--safer)); }
-  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
-  header h1 { font-size: 17px; font-weight: 650; margin: 0; }
-  header p { margin: 0; font-size: 12px; color: var(--muted); }
+  header { display: flex; align-items: baseline; margin-bottom: 8px; min-width: 0; }
+  header h1 { font-size: clamp(15px, 4.4vw, 18px); font-weight: 650; margin: 0; line-height: 1.2; overflow-wrap: break-word; }
   .wrap { display: grid; grid-template-columns: 1fr; gap: 12px; width: 100%; }
   @media (orientation: landscape) and (min-width: 700px) {
     .wrap { grid-template-columns: minmax(260px, 1fr) minmax(290px, 400px); align-items: start; }
@@ -134,8 +133,7 @@
 </head>
 <body>
   <header>
-    <h1>G3X HSI Trainer</h1>
-    <p>Garmin G3X Touch style · offline</p>
+    <h1>Electronic Instrument Training Aid</h1>
   </header>
   <div class="wrap">
     <div class="gauge"><div class="gauge-frame">
@@ -380,26 +378,24 @@
     c.closePath();
   }
 
-  function airplane(c, s) {
-    c.beginPath();
-    c.moveTo(0, -34 * s);
-    c.lineTo(5 * s, -10 * s);
-    c.lineTo(30 * s, 8 * s);
-    c.lineTo(30 * s, 15 * s);
-    c.lineTo(5 * s, 6 * s);
-    c.lineTo(5 * s, 22 * s);
-    c.lineTo(14 * s, 32 * s);
-    c.lineTo(14 * s, 37 * s);
-    c.lineTo(0, 30 * s);
-    c.lineTo(-14 * s, 37 * s);
-    c.lineTo(-14 * s, 32 * s);
-    c.lineTo(-5 * s, 22 * s);
-    c.lineTo(-5 * s, 6 * s);
-    c.lineTo(-30 * s, 15 * s);
-    c.lineTo(-30 * s, 8 * s);
-    c.lineTo(-5 * s, -10 * s);
-    c.closePath();
+  // Shared top-down high-wing trainer (Cessna 172 style). Units: span 66, nose to tail 50; pivot at (0,0).
+  const TRAINER_SVG = 'M0,-24.5 C2.3,-24.5 3.8,-22.6 4,-19.6 L4.2,-11.6 L27,-11.6 L31.6,-11.1 Q33,-10.8 33,-9.2 L33,-4.5 ' +
+    'Q33,-3 31.6,-2.8 L27,-1.9 L4.2,-1.9 L3.3,3 L1.7,17.1 L11,17.5 Q12.1,17.6 12.1,18.7 L12.1,21.3 Q12.1,22.4 11,22.5 ' +
+    'L1.6,22.6 L1,24.4 Q0,25.1 -1,24.4 L-1.6,22.6 L-11,22.5 Q-12.1,22.4 -12.1,21.3 L-12.1,18.7 Q-12.1,17.6 -11,17.5 ' +
+    'L-1.7,17.1 L-3.3,3 L-4.2,-1.9 L-27,-1.9 L-31.6,-2.8 Q-33,-3 -33,-4.5 L-33,-9.2 Q-33,-10.8 -31.6,-11.1 L-27,-11.6 ' +
+    'L-4.2,-11.6 L-4,-19.6 C-3.8,-22.6 -2.3,-24.5 0,-24.5 Z';
+  const TRAINER_PATH = new Path2D(TRAINER_SVG);
+  // o: { fill, stroke, lw (outline width in canvas px), fin (fin-line colour) }
+  function drawTrainer(c, s, o) {
+    c.save(); c.scale(s, s);
+    c.lineJoin = 'round';
+    if (o.stroke) { c.lineWidth = (o.lw || 2) / s; c.strokeStyle = o.stroke; c.stroke(TRAINER_PATH); }
+    c.fillStyle = o.fill; c.fill(TRAINER_PATH);
+    c.beginPath(); c.moveTo(0, 15.5); c.lineTo(0, 24.2);
+    c.lineCap = 'round'; c.lineWidth = 1.7; c.strokeStyle = o.fin || o.stroke || 'rgba(255,255,255,0.7)'; c.stroke();
+    c.restore();
   }
+  window.drawTrainer = drawTrainer;
 
   function draw() {
     const W = canvas.width, H = canvas.height;
@@ -531,12 +527,7 @@
     ctx.restore(); // clip
 
     // aircraft on top of CDI, fixed to the airplane
-    ctx.fillStyle = W;
-    ctx.strokeStyle = '#0b1a14';
-    ctx.lineWidth = 3;
-    airplane(ctx, 1.15);
-    ctx.fill();
-    ctx.stroke();
+    drawTrainer(ctx, 1.15, { fill: W, stroke: '#0b1a14', lw: 3, fin: '#0b1a14' }); // fill: W is the canvas width here, so the fill keeps the inherited style exactly as before
 
     // outer ring
     ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, Math.PI * 2);
@@ -697,12 +688,7 @@
     mctx.save();
     mctx.translate(pos.x, pos.y);
     mctx.rotate(state.hdg * Math.PI / 180);
-    mctx.fillStyle = '#ffffff';
-    mctx.strokeStyle = '#0b1a14';
-    mctx.lineWidth = 3;
-    airplane(mctx, 1.05);
-    mctx.fill();
-    mctx.stroke();
+    drawTrainer(mctx, 1.05, { fill: '#ffffff', stroke: '#0b1a14', lw: 6, fin: '#0b1a14' });
     mctx.restore();
 
     mctx.restore();
@@ -1022,11 +1008,7 @@
 
     // airplane at the bottom, flying up toward the fix
     ctx.save(); ctx.translate(0, F * 0.80);
-    const s = 0.95 * u;
-    ctx.beginPath();
-    [[0,-34],[5,-10],[30,8],[30,15],[5,6],[5,22],[14,32],[14,37],[0,30],[-14,37],[-14,32],[-5,22],[-5,6],[-30,15],[-30,8],[-5,-10]]
-      .forEach(([x, y], i) => i ? ctx.lineTo(x * s, y * s) : ctx.moveTo(x * s, y * s));
-    ctx.closePath(); ctx.fillStyle = '#1b2533'; ctx.fill();
+    window.drawTrainer(ctx, 0.95 * u, { fill: '#1b2533', fin: '#9aa6b8' });
     ctx.restore();
 
     // ---- holding overlay (rotates to the radial) ----
@@ -1082,10 +1064,7 @@
       if (k > 0) { trace(0, k); ctx.lineWidth = 5.5 * u; ctx.strokeStyle = col; ctx.stroke(); }
       const ap = pathPoint(P, sNow), sp = scr(ap);
       ctx.save(); ctx.translate(sp.x, sp.y); ctx.rotate(rad(ap.th - res.d));
-      const z = 0.62 * u; ctx.beginPath();
-      [[0,-34],[5,-10],[30,8],[30,15],[5,6],[5,22],[14,32],[14,37],[0,30],[-14,37],[-14,32],[-5,22],[-5,6],[-30,15],[-30,8],[-5,-10]]
-        .forEach(([x, y], i) => i ? ctx.lineTo(x * z, y * z) : ctx.moveTo(x * z, y * z));
-      ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2 * u; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+      window.drawTrainer(ctx, 0.62 * u, { fill: col, stroke: '#ffffff', lw: 4 * u, fin: '#ffffff' });
       ctx.restore();
     }
     ctx.restore();
