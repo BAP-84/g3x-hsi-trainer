@@ -106,6 +106,8 @@
     .hold-gauge { max-width: min(100%, 720px, calc(100vh - 70px)); }
   }
   .hold-gauge .gauge-frame { background: #0c1a15; }
+  .gauge-frame canvas#hsi { pointer-events: auto; touch-action: none; cursor: grab;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .gauge-frame canvas.hold-cv { pointer-events: auto; touch-action: none; cursor: grab;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .hold-controls { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
@@ -169,14 +171,6 @@
           </div>
         </div>
         <div>
-          <label for="bug">Heading bug</label>
-          <div class="stepper">
-            <button type="button" data-field="bug" data-d="-1">−</button>
-            <input id="bug" type="number" inputmode="numeric" min="1" max="360" step="1" value="360">
-            <button type="button" data-field="bug" data-d="1">+</button>
-          </div>
-        </div>
-        <div>
           <label for="crs">Selected course</label>
           <div class="stepper">
             <button type="button" data-field="crs" data-d="-1">−</button>
@@ -234,7 +228,6 @@
       <div class="readout">
         <span>SRC <b id="rSrc" class="mag">GPS</b></span>
         <span>HDG <b id="rHdg">237</b></span>
-        <span>BUG <b id="rBug" class="cy">360</b></span>
         <span>CRS <b id="rCrs" class="mag">247</b></span>
         <span>CDI <b id="rCdi">CENTER</b></span>
         <span>VDI <b id="rVdi">HIDDEN</b></span>
@@ -296,7 +289,7 @@
       <button type="button" data-v="hold">Holding Entry</button>
     </div>
   </div>
-  <footer>Works offline. Safari → Share → Add to Home Screen. Magenta = GPS · Green = VLOC · Cyan = heading bug.</footer>
+  <footer>Works offline. Safari → Share → Add to Home Screen. Magenta = GPS · Green = VLOC. Drag outside the compass card to turn the heading; drag inside it to set the course.</footer>
 <script>
 (function () {
   document.body.classList.add('js-on');
@@ -318,12 +311,11 @@
     sizeOne(canvas);
     sizeOne(mapCanvas);
   }
-  const MAG = '#e84cff', GRN = '#2ee66b', CYAN = '#3ad7ff', W = '#ffffff';
-  const state = { src: 'GPS', hdg: 237, bug: 0, crs: 247, dir: 'C', dots: 2, vDir: 'OFF', vDots: 2, flag: 'TO' };
+  const MAG = '#e84cff', GRN = '#2ee66b', W = '#ffffff';
+  const state = { src: 'GPS', hdg: 237, crs: 247, dir: 'C', dots: 2, vDir: 'OFF', vDots: 2, flag: 'TO' };
 
   const pad3 = n => String(((Math.round(n) % 360) + 360) % 360).padStart(3, '0');
   const pad360 = n => { n = ((Math.round(n) % 360) + 360) % 360; return n === 0 ? '360' : pad3(n); };
-  const padBug = pad360;
   function wrap(n) { n = Number(n); if (!isFinite(n)) n = 0; return ((Math.round(n) % 360) + 360) % 360; }
   function navColor() { return state.src === 'GPS' ? MAG : GRN; }
   function offset(dir, dots, pos, neg) {
@@ -338,12 +330,10 @@
 
   function sync() {
     document.getElementById('hdg').value = pad360(state.hdg);
-    document.getElementById('bug').value = padBug(state.bug);
     document.getElementById('crs').value = pad360(state.crs);
     document.getElementById('rSrc').textContent = state.src;
     document.getElementById('rSrc').className = state.src === 'GPS' ? 'mag' : 'grn';
     document.getElementById('rHdg').textContent = pad360(state.hdg);
-    document.getElementById('rBug').textContent = padBug(state.bug);
     document.getElementById('rCrs').textContent = pad360(state.crs);
     document.getElementById('rCrs').className = state.src === 'GPS' ? 'mag' : 'grn';
     const c = cdiOff();
@@ -449,21 +439,6 @@
       ctx.fillStyle = '#ffffff'; ctx.fillText(txt, 0, 0);
       ctx.restore();
     }
-
-    // heading bug (cyan) on rose
-    ctx.save();
-    ctx.rotate(state.bug * Math.PI / 180);
-    ctx.fillStyle = CYAN;
-    ctx.beginPath();
-    ctx.moveTo(0, -R - 2);
-    ctx.lineTo(16, -R + 22);
-    ctx.lineTo(7, -R + 22);
-    ctx.lineTo(7, -R + 34);
-    ctx.lineTo(-7, -R + 34);
-    ctx.lineTo(-7, -R + 22);
-    ctx.lineTo(-16, -R + 22);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
 
     // course pointer + CDI
     ctx.save();
@@ -580,9 +555,9 @@
     // digital header
     ctx.font = '600 22px -apple-system, Helvetica, sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillText('HDG', 36, 28);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillText('SRC', 36, 28);
     ctx.font = '700 40px -apple-system, Helvetica, sans-serif';
-    ctx.fillStyle = CYAN; ctx.fillText(padBug(state.bug), 36, 54);
+    ctx.fillStyle = col; ctx.fillText(state.src, 36, 54);
 
     ctx.textAlign = 'center';
     ctx.font = '600 20px -apple-system, Helvetica, sans-serif';
@@ -702,7 +677,7 @@
       render();
     });
   });
-  [['hdg','hdg'],['bug','bug'],['crs','crs']].forEach(([id, key]) => {
+  [['hdg','hdg'],['crs','crs']].forEach(([id, key]) => {
     const el = document.getElementById(id);
     const apply = () => { const v = parseInt(el.value, 10); if (isFinite(v)) state[key] = wrap(v); render(); };
     el.addEventListener('change', apply);
@@ -745,9 +720,35 @@
     render();
   });
 
+
+  // Drag on the HSI: outside the compass card turns the heading card, inside it turns the selected course.
+  let hsiDrag = null;
+  function hsiPtr(e) {
+    const r = canvas.getBoundingClientRect(), sc = canvas.width / r.width;
+    const x = (e.clientX - r.left) * sc - canvas.width * 0.50, y = (e.clientY - r.top) * sc - canvas.height * 0.58;
+    const a = Math.atan2(x, -y) * 180 / Math.PI;
+    return { r: Math.hypot(x, y), a: (a + 360) % 360, R: canvas.width * 0.36 };
+  }
+  const hsiDiff = (a, b) => { let d = ((a - b) % 360 + 360) % 360; return d > 180 ? d - 360 : d; };
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button > 0) return;
+    const p = hsiPtr(e);
+    hsiDrag = { mode: p.r > p.R ? 'hdg' : 'crs', a0: p.a, v0: p.r > p.R ? state.hdg : state.crs };
+    canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!hsiDrag) return;
+    const d = hsiDiff(hsiPtr(e).a, hsiDrag.a0);
+    if (hsiDrag.mode === 'hdg') state.hdg = wrap(hsiDrag.v0 - d);   // card follows the finger
+    else state.crs = wrap(hsiDrag.v0 + d);                           // course pointer follows the finger
+    render(); e.preventDefault();
+  });
+  const hsiEnd = () => { if (hsiDrag) { hsiDrag = null; canvas.style.cursor = ''; render(); } };
+  canvas.addEventListener('pointerup', hsiEnd); canvas.addEventListener('pointercancel', hsiEnd);
+  canvas.addEventListener('touchmove', e => { if (hsiDrag) e.preventDefault(); }, { passive: false });
   try {
     const saved = JSON.parse(localStorage.getItem('g3x-hsi-trainer') || 'null');
-    if (saved && saved.src) Object.assign(state, saved);
+    if (saved && saved.src) { Object.assign(state, saved); delete state.bug; }
     document.querySelectorAll('#src button').forEach(b => b.classList.toggle('on', b.dataset.v === state.src));
     document.querySelectorAll('#cdiDir button').forEach(b => b.classList.toggle('on', b.dataset.v === state.dir));
     document.querySelectorAll('#hDots button').forEach(b => b.classList.toggle('on', Number(b.dataset.v) === state.dots));
