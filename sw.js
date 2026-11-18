@@ -1,4 +1,4 @@
-const CACHE = 'g3x-hsi-trainer-v13';
+const CACHE = 'g3x-hsi-trainer-v14';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './apple-touch-icon.png'];
 self.addEventListener('install', (event) => {
   // cache: 'reload' bypasses the browser HTTP cache so a new version never precaches a stale copy

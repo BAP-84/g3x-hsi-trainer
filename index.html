@@ -524,12 +524,15 @@
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
 
     // lubber / heading index at top
-    ctx.fillStyle = W;
+    // fixed white triangle pointing down at the card (G3X style), thin dark outline for contrast
     ctx.beginPath();
-    ctx.moveTo(0, -R - 10);
-    ctx.lineTo(11, -R + 16);
-    ctx.lineTo(-11, -R + 16);
-    ctx.closePath(); ctx.fill();
+    ctx.moveTo(0, -R + 6);
+    ctx.lineTo(15.5, -R - 28);
+    ctx.lineTo(-15.5, -R - 28);
+    ctx.closePath();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3; ctx.strokeStyle = '#0b1a14'; ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.fill();
 
     // turn-rate marks (static scale)
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2;
@@ -578,7 +581,7 @@
     ctx.font = '600 20px -apple-system, Helvetica, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillText('HDG', W / 2, 18);
     ctx.font = '700 64px -apple-system, Helvetica, sans-serif';
-    ctx.fillStyle = W; ctx.fillText(pad360(state.hdg) + '°', W / 2, 40);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(pad360(state.hdg) + '°', W / 2, 40);
 
     ctx.textAlign = 'right';
     ctx.font = '600 22px -apple-system, Helvetica, sans-serif';
