@@ -74,6 +74,8 @@
   .stepper { display: flex; align-items: stretch; background: var(--card); border: 1px solid var(--line);
     border-radius: 12px; overflow: hidden; }
   .stepper button { width: 36px; flex: 0 0 36px; border: 0; background: transparent; color: var(--ink); font-size: 22px; }
+  .controls .stepper input { touch-action: none; cursor: ns-resize; }
+  .controls .stepper.dragging { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(61,125,255,0.35); }
   .stepper input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink);
     font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 650; text-align: center;
     padding: 7px 0; outline: none; }
@@ -103,18 +105,6 @@
   .map-notes p span { color: var(--muted); }
   .map-notes .mag { color: var(--mag); }
   .map-notes .grn { color: var(--vloc); }
-  .map-notes p { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; }
-  .dragbox { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px 5px 11px; margin: 1px 0;
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px; cursor: ns-resize;
-    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  .map-notes p .dragbox { color: var(--ink); }
-  .dragbox b { font-size: 16px; font-variant-numeric: tabular-nums; }
-  .dragbox .chev { position: relative; width: 8px; height: 14px; opacity: 0.6; }
-  .dragbox .chev::before, .dragbox .chev::after { content: ''; position: absolute; left: 0; border: 4px solid transparent; }
-  .dragbox .chev::before { top: -2px; border-bottom: 5px solid var(--muted); }
-  .dragbox .chev::after { bottom: -2px; border-top: 5px solid var(--muted); }
-  .dragbox.dragging { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(61,125,255,0.35); }
-  .dragbox.dragging .chev { opacity: 1; }
   .map-panel .drag-note { margin: 6px 4px 0; }
   /* ---- Holding entry view ---- */
   .hold-panel { display: none; width: 100%; }
@@ -171,11 +161,11 @@
       <div class="gauge-frame">
         <canvas id="map" width="1000" height="1000"></canvas>
       </div>
-      <p class="drag-note">Drag the <b class="hd">heading</b> or <b class="cs">course</b> box up or down to change it</p>
+      <p class="drag-note">Drag the <b class="hd">heading</b> or <b class="cs">course</b> box below up or down to change it</p>
       <div class="map-notes" id="mapNotes">
-        <p>Course / radial <span class="dragbox" data-drag="crs" title="Drag up or down"><b id="nCrs" class="mag">247°</b><i class="chev"></i></span> <span>— dashed line through the VOR</span></p>
+        <p>Course / radial <b id="nCrs" class="mag">247°</b> — dashed line through the VOR</p>
         <p>Flag <b id="nFlg">TO</b> <span id="nFlgHint"></span></p>
-        <p>Heading <span class="dragbox" data-drag="hdg" title="Drag up or down"><b id="nHdg">237°</b><i class="chev"></i></span> <span>— airplane nose points this way</span></p>
+        <p>Heading <b id="nHdg">237°</b> — airplane nose points this way</p>
         <p>CDI <b id="nCdi">CENTER</b> <span id="nCdiHint"></span></p>
       </div>
     </div>
@@ -767,33 +757,42 @@
   });
 
 
-  // Map tab: drag the heading / course boxes vertically (up = +5, down = -5, ~14 px per step)
-  document.querySelectorAll('.dragbox').forEach(box => {
+  // Current heading / Selected course boxes (HSI and Map tabs): drag the value up (+5) or down (-5), ~14 px per step.
+  // A tap without vertical movement still focuses the field for typing an exact value.
+  ['hdg', 'crs'].forEach(key => {
+    const input = document.getElementById(key), box = input.closest('.stepper');
+    const STEP_PX = 14, START_PX = 6;
     let d = null;
-    const STEP_PX = 14;
-    box.addEventListener('pointerdown', e => {
+    input.addEventListener('pointerdown', e => {
       if (e.button !== undefined && e.button > 0) return;
-      const key = box.dataset.drag;
-      d = { key, y0: e.clientY, v0: state[key], n: 0 };
-      box.setPointerCapture(e.pointerId); box.classList.add('dragging'); e.preventDefault();
+      d = { id: e.pointerId, y0: e.clientY, v0: state[key], n: 0, active: false };
     });
-    box.addEventListener('pointermove', e => {
-      if (!d) return;
-      const raw = (d.y0 - e.clientY) / STEP_PX;            // up = positive
-      if (Math.abs(raw - d.n) < 0.75) return;              // hysteresis: no jitter at a step boundary
+    input.addEventListener('pointermove', e => {
+      if (!d || e.pointerId !== d.id) return;
+      const dy = d.y0 - e.clientY;
+      if (!d.active) {
+        if (Math.abs(dy) < START_PX) return;
+        d.active = true;
+        try { input.setPointerCapture(e.pointerId); } catch (err) {}
+        input.blur(); box.classList.add('dragging');
+      }
+      e.preventDefault();
+      const raw = dy / STEP_PX;
+      if (Math.abs(raw - d.n) < 0.75) return;            // hysteresis: no jitter at a step boundary
       const n = Math.round(raw);
       if (n === d.n) return;
       d.n = n;
-      let v;
-      if (n > 0) v = Math.floor(d.v0 / 5) * 5 + n * 5;
-      else if (n < 0) v = Math.ceil(d.v0 / 5) * 5 + n * 5;
-      else v = d.v0;
-      state[d.key] = wrap(v);
-      render(); e.preventDefault();
+      let v = n > 0 ? Math.floor(d.v0 / 5) * 5 + n * 5 : n < 0 ? Math.ceil(d.v0 / 5) * 5 + n * 5 : d.v0;
+      state[key] = wrap(v);
+      render();
     });
-    const end = () => { if (d) { d = null; box.classList.remove('dragging'); render(); } };
-    box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
-    box.addEventListener('touchmove', e => { if (d) e.preventDefault(); }, { passive: false });
+    const end = e => {
+      if (!d) return;
+      const was = d.active; d = null;
+      if (was) { box.classList.remove('dragging'); input.blur(); if (e && e.cancelable) e.preventDefault(); render(); }
+    };
+    input.addEventListener('pointerup', end); input.addEventListener('pointercancel', end);
+    input.addEventListener('touchmove', e => { if (d && d.active) e.preventDefault(); }, { passive: false });
   });
 
   // Drag on the HSI: outside the compass card turns the heading card, inside it turns the selected course.
