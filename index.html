@@ -94,6 +94,42 @@
   .map-notes p span { color: var(--muted); }
   .map-notes .mag { color: var(--mag); }
   .map-notes .grn { color: var(--vloc); }
+  /* ---- Holding entry view ---- */
+  .hold-panel { display: none; width: 100%; }
+  body.show-hold .wrap { display: none; }
+  body.show-hold .hold-panel { display: grid; }
+  .hold-panel { grid-template-columns: 1fr; gap: 12px; }
+  @media (orientation: landscape) and (min-width: 700px) {
+    .hold-panel { grid-template-columns: minmax(260px, 1fr) minmax(290px, 380px); align-items: start; }
+  }
+  .hold-gauge { min-width: 0; width: 100%; max-width: min(100%, 720px); margin: 0 auto; }
+  @media (orientation: landscape) {
+    .hold-gauge { max-width: min(100%, 720px, calc(100vh - 70px)); }
+  }
+  .hold-gauge .gauge-frame { background: #0c1a15; }
+  .gauge-frame canvas.hold-cv { pointer-events: auto; touch-action: none; cursor: grab;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .hold-controls { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .hold-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 8px; }
+  .seg.turns button.on { background: #1f5fbf; }
+  .entry-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+  .entry-card .lbl { font-size: 10px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .entry-card .big { font-size: 30px; font-weight: 750; letter-spacing: 0.02em; margin: 2px 0 2px; }
+  .entry-card .big.direct { color: #2ee66b; }
+  .entry-card .big.teardrop { color: #ffb02e; }
+  .entry-card .big.parallel { color: #3ad7ff; }
+  .entry-card .why { font-size: 12px; color: var(--muted); line-height: 1.35; margin: 0; }
+  .entry-card .why b { color: var(--ink); }
+  .entry-card .warn { font-size: 12px; color: #ffd166; margin: 6px 0 0; }
+  .hold-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .hold-grid div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 7px 10px; }
+  .hold-grid span { display: block; font-size: 10px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .hold-grid b { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .hold-grid .td b { color: #ffb02e; }
+  .hold-grid div.dim { opacity: 0.4; }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+  .chk input { width: 20px; height: 20px; accent-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -208,11 +244,58 @@
       </div>
     </form>
   </div>
+  <div class="hold-panel" id="holdPanel">
+    <div class="hold-gauge"><div class="gauge-frame">
+      <canvas id="holdCv" class="hold-cv" width="1000" height="1000"></canvas>
+    </div></div>
+    <div class="hold-controls">
+      <div class="row">
+        <label>Holding turns</label>
+        <div class="seg turns" id="hTurns">
+          <button type="button" data-v="R" class="on">Right (standard)</button>
+          <button type="button" data-v="L">Left (non-standard)</button>
+        </div>
+      </div>
+      <div class="hold-two">
+        <div>
+          <label for="hHdg">Aircraft heading</label>
+          <div class="stepper hstep">
+            <button type="button" data-hf="hdg" data-d="-5">−</button>
+            <input id="hHdg" type="number" inputmode="numeric" min="1" max="360" step="1" value="360">
+            <button type="button" data-hf="hdg" data-d="5">+</button>
+          </div>
+        </div>
+        <div>
+          <label for="hRad">Holding radial</label>
+          <div class="stepper hstep">
+            <button type="button" data-hf="rad" data-d="-5">−</button>
+            <input id="hRad" type="number" inputmode="numeric" min="1" max="360" step="1" value="360">
+            <button type="button" data-hf="rad" data-d="5">+</button>
+          </div>
+        </div>
+      </div>
+      <p class="hint">Drag the blue card to set heading under the top arrow. Drag the red tab (or the pattern) to set the holding radial. − / + steps 5°, or type an exact value.</p>
+      <div class="entry-card">
+        <div class="lbl">Entry</div>
+        <div class="big direct" id="hEntry">DIRECT</div>
+        <p class="why" id="hWhy"></p>
+        <p class="warn" id="hWarn" hidden></p>
+      </div>
+      <div class="hold-grid">
+        <div><span>Inbound course</span><b id="hIn">180°</b></div>
+        <div><span>Outbound heading</span><b id="hOut">360°</b></div>
+        <div class="td" id="hTdBox"><span>Teardrop heading</span><b id="hTd">—</b></div>
+        <div><span>Heading vs inbound</span><b id="hRel">0°</b></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="hPath" checked> Show animated entry path</label>
+    </div>
+  </div>
   <div class="viewbar">
     <label>View</label>
     <div class="seg" id="viewBar">
       <button type="button" data-v="hsi" class="on">Instrument</button>
       <button type="button" data-v="map">Map</button>
+      <button type="button" data-v="hold">Holding Entry</button>
     </div>
   </div>
   <footer>Works offline. Safari → Share → Add to Home Screen. Magenta = GPS · Green = VLOC · Cyan = heading bug.</footer>
@@ -627,7 +710,7 @@
 
   function render() { sizeCanvas(); sync(); draw(); drawMap(); }
 
-  document.querySelectorAll('.stepper button').forEach(b => {
+  document.querySelectorAll('.controls .stepper button').forEach(b => {
     b.addEventListener('click', () => {
       state[b.dataset.field] = wrap(state[b.dataset.field] + Number(b.dataset.d));
       render();
@@ -672,6 +755,7 @@
     if (!b) return;
     document.querySelectorAll('#viewBar button').forEach(x => x.classList.toggle('on', x === b));
     document.body.classList.toggle('show-map', b.dataset.v === 'map');
+    document.body.classList.toggle('show-hold', b.dataset.v === 'hold');
     render();
   });
 
@@ -695,6 +779,353 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
+})();
+</script>
+<script>
+/* Holding entry computer (modeled on a two-sided holding pattern computer) */
+(function () {
+  const norm360 = n => ((Math.round(n) % 360) + 360) % 360;
+  const show360 = n => { n = norm360(n); return n === 0 ? '360' : String(n).padStart(3, '0'); };
+  const signed = n => { n = ((n % 360) + 360) % 360; return n > 180 ? n - 360 : n; }; // (-180, 180]
+
+  // AIM 5-3-8 sector logic. radial = holding radial (fix -> outbound end), inbound = radial + 180.
+  // d = heading - inbound, in (-180, 180]. Right turns: Direct -70..+110, Teardrop +110..180, Parallel -180..-70.
+  // Left turns are the mirror image. Exact 70-degree-line headings count as Direct; exactly opposite the inbound counts as Teardrop.
+  function holdEntry(hdg, radial, turns) {
+    const inbound = norm360(radial + 180);
+    const d = signed(hdg - inbound);
+    const m = turns === 'L' ? -d : d;           // mirror left-turn holds onto the right-turn rule
+    let entry;
+    if (Math.abs(m) === 180 || m > 110) entry = 'TEARDROP';
+    else if (m >= -70) entry = 'DIRECT';
+    else entry = 'PARALLEL';
+    const outbound = norm360(radial);
+    const teardrop = norm360(turns === 'L' ? radial + 30 : radial - 30);
+    const edge = Math.min(Math.abs(m + 70), Math.abs(m - 110), 180 - Math.abs(m));
+    return { entry, inbound, outbound, teardrop, d, nearBoundary: edge <= 5 };
+  }
+  window.HoldCalc = { holdEntry };
+
+  const cv = document.getElementById('holdCv');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const hs = { turns: 'R', hdg: 360, rad: 360, path: true };
+  try { const s = JSON.parse(localStorage.getItem('g3x-hold-entry') || 'null'); if (s && s.turns) Object.assign(hs, s); } catch (e) {}
+
+  const COL = { DIRECT: '#1f9d4a', TEARDROP: '#e08a00', PARALLEL: '#1a8fc4' };
+  const FILL = { DIRECT: 'rgba(46,200,100,0.20)', TEARDROP: 'rgba(255,170,30,0.26)', PARALLEL: 'rgba(40,170,230,0.22)' };
+  let geom = null, dashT = 0, animOn = false;
+
+  function size() {
+    const css = Math.max(220, cv.parentElement.clientWidth || 320);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const px = Math.max(320, Math.round(css * dpr));
+    if (cv.width !== px) { cv.width = px; cv.height = px; }
+  }
+  const rad = d => d * Math.PI / 180;
+  const pol = (a, r) => ({ x: Math.sin(rad(a)) * r, y: -Math.cos(rad(a)) * r });
+
+  // face-frame sector boundaries (angle of the radial measured clockwise from the heading index)
+  function sectors(turns) {
+    // rho = radial - heading = 180 - d (mod 360)
+    return turns === 'L'
+      ? [{ name: 'DIRECT', a0: 110, a1: 290 }, { name: 'TEARDROP', a0: 290, a1: 360 }, { name: 'PARALLEL', a0: 0, a1: 110 }]
+      : [{ name: 'DIRECT', a0: 70, a1: 250 }, { name: 'TEARDROP', a0: 0, a1: 70 }, { name: 'PARALLEL', a0: 250, a1: 360 }];
+  }
+
+  function draw() {
+    size();
+    const W = cv.width, H = cv.height, u = W / 1000;
+    const cx = W / 2, cy = H * 0.535, Rc = W * 0.405, Ri = Rc * 0.79, F = Ri;
+    geom = { cx, cy, Rc, Ri, F, u };
+    const res = holdEntry(hs.hdg, hs.rad, hs.turns);
+    const rho = norm360(hs.rad - hs.hdg);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0c1a15'; ctx.fillRect(0, 0, W, H);
+    const font = (w, s) => w + ' ' + Math.round(s * u) + 'px -apple-system, Helvetica, sans-serif';
+
+    // corner captions
+    ctx.textBaseline = 'top';
+    ctx.font = font('700', 26); ctx.fillStyle = hs.turns === 'L' ? '#ffb02e' : '#7fb2ff';
+    ctx.textAlign = 'left';
+    ctx.fillText(hs.turns === 'L' ? 'NON-STANDARD' : 'STANDARD', 22 * u, 20 * u);
+    ctx.fillText(hs.turns === 'L' ? 'LEFT TURNS' : 'RIGHT TURNS', 22 * u, 50 * u);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#8aa396';
+    ctx.fillText('HOLDING', W - 22 * u, 20 * u);
+    ctx.fillText('ENTRY', W - 22 * u, 50 * u);
+
+    ctx.save(); ctx.translate(cx, cy);
+
+    // ---- rotating compass card (blue rim) ----
+    ctx.beginPath(); ctx.arc(0, 0, Rc + 6 * u, 0, Math.PI * 2); ctx.fillStyle = '#081322'; ctx.fill();
+    const g = ctx.createRadialGradient(0, 0, Ri, 0, 0, Rc);
+    g.addColorStop(0, '#173f86'); g.addColorStop(1, '#2459b5');
+    ctx.beginPath(); ctx.arc(0, 0, Rc, 0, Math.PI * 2); ctx.arc(0, 0, Ri, 0, Math.PI * 2, true);
+    ctx.fillStyle = g; ctx.fill('evenodd');
+    ctx.save(); ctx.rotate(-rad(hs.hdg));
+    ctx.lineCap = 'round';
+    for (let d = 0; d < 360; d += 5) {
+      const long = d % 30 === 0, mid = d % 10 === 0;
+      const r0 = Ri + 2 * u, r1 = Ri + (long ? 26 : mid ? 18 : 11) * u;
+      const p0 = pol(d, r0), p1 = pol(d, r1);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = (long ? 3.4 : 2) * u; ctx.stroke();
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const letters = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' };
+    for (let d = 0; d < 360; d += 10) {
+      const isL = letters[d] !== undefined, big = d % 30 === 0;
+      if (!big && !isL) continue;
+      const p = pol(d, Ri + 50 * u);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(rad(d));
+      ctx.font = font('800', isL ? 40 : 30);
+      ctx.fillStyle = isL ? '#ff4b3e' : '#ffffff';
+      if (isL) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5 * u; ctx.strokeText(letters[d], 0, 0); }
+      ctx.fillText(isL ? letters[d] : String(d / 10), 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // ---- cream face (fixed, aircraft-heading frame) ----
+    const fg = ctx.createRadialGradient(0, -F * 0.3, F * 0.1, 0, 0, F);
+    fg.addColorStop(0, '#fbf6e6'); fg.addColorStop(1, '#ece2c4');
+    ctx.beginPath(); ctx.arc(0, 0, F, 0, Math.PI * 2); ctx.fillStyle = fg; ctx.fill();
+    ctx.lineWidth = 3 * u; ctx.strokeStyle = '#0d2b5c'; ctx.stroke();
+
+    // active sector tint
+    sectors(hs.turns).forEach(s => {
+      if (s.name !== res.entry) return;
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.arc(0, 0, F - 2 * u, rad(s.a0 - 90), rad(s.a1 - 90));
+      ctx.closePath(); ctx.fillStyle = FILL[s.name]; ctx.fill();
+    });
+    // sector lines: the 70-degree line through the fix (both ways) and the line toward the heading index
+    const a70 = hs.turns === 'L' ? 290 : 70;
+    ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 3 * u; ctx.setLineDash([]);
+    [[a70, a70 + 180], [0, null]].forEach(([a, b]) => {
+      const p = pol(a, F - 3 * u), q = b === null ? { x: 0, y: 0 } : pol(b, F - 3 * u);
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+    });
+    // 70 deg arc mark
+    ctx.beginPath(); ctx.lineWidth = 2 * u;
+    const ma = hs.turns === 'L' ? [rad(290 - 90), rad(360 - 90)] : [rad(-90), rad(70 - 90)];
+    ctx.arc(0, 0, F * 0.2, ma[0], ma[1]); ctx.stroke();
+    // sector labels
+    const lab = (txt, a, r, active, col) => {
+      const p = pol(a, r);
+      ctx.font = font(active ? '800' : '700', active ? 30 : 25);
+      ctx.fillStyle = active ? col : '#55524a';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, p.x, p.y);
+    };
+    const L = hs.turns === 'L';
+    // keep each label clear of the red tab: pick the candidate spot farthest from it
+    const tabA = norm360(hs.rad - hs.hdg);
+    const pick = (opts) => opts.reduce((b, o) => Math.abs(signed(o[0] - tabA)) > Math.abs(signed(b[0] - tabA)) ? o : b);
+    const mir = a => L ? norm360(360 - a) : a;
+    const tdS = pick([[42, 0.78], [22, 0.66], [52, 0.5]].map(o => [mir(o[0]), o[1]]));
+    const paS = pick([[302, 0.74], [328, 0.7], [276, 0.62]].map(o => [mir(o[0]), o[1]]));
+    const diS = pick([[142, 0.66], [200, 0.6], [110, 0.72]].map(o => [mir(o[0]), o[1]]));
+    lab('TEARDROP', tdS[0], F * tdS[1], res.entry === 'TEARDROP', COL.TEARDROP);
+    lab('PARALLEL', paS[0], F * paS[1], res.entry === 'PARALLEL', COL.PARALLEL);
+    lab('DIRECT', diS[0], F * diS[1], res.entry === 'DIRECT', COL.DIRECT);
+    ctx.font = font('700', 20); ctx.fillStyle = '#55524a';
+    const m70 = pol(L ? 325 : 35, F * 0.27); ctx.fillText('70°', m70.x, m70.y);
+
+    // airplane at the bottom, flying up toward the fix
+    ctx.save(); ctx.translate(0, F * 0.80);
+    const s = 0.95 * u;
+    ctx.beginPath();
+    [[0,-34],[5,-10],[30,8],[30,15],[5,6],[5,22],[14,32],[14,37],[0,30],[-14,37],[-14,32],[-5,22],[-5,6],[-30,15],[-30,8],[-5,-10]]
+      .forEach(([x, y], i) => i ? ctx.lineTo(x * s, y * s) : ctx.moveTo(x * s, y * s));
+    ctx.closePath(); ctx.fillStyle = '#1b2533'; ctx.fill();
+    ctx.restore();
+
+    // ---- holding overlay (rotates to the radial) ----
+    const Lg = F * 0.46, w = F * 0.2, sd = L ? 1 : -1;   // sd: holding side (+x left-turn, -x right-turn) in overlay frame
+    const toS = (x, y) => { const c = Math.cos(rad(rho)), sn = Math.sin(rad(rho)); return { x: x * c - y * sn, y: x * sn + y * c }; };
+    ctx.save(); ctx.rotate(rad(rho));
+    // translucent overlay disk
+    ctx.beginPath(); ctx.arc(0, 0, F * 0.97, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
+    // dotted inbound course line beyond the pattern to the tab, and past the fix
+    ctx.setLineDash([3 * u, 9 * u]); ctx.lineCap = 'round'; ctx.lineWidth = 4 * u; ctx.strokeStyle = '#c0281f';
+    ctx.beginPath(); ctx.moveTo(0, -Lg); ctx.lineTo(0, -F * 0.86); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, F * 0.35); ctx.strokeStyle = 'rgba(192,40,31,0.45)'; ctx.stroke();
+    ctx.setLineDash([]);
+    // racetrack
+    ctx.beginPath();
+    ctx.moveTo(0, -Lg); ctx.lineTo(0, 0);
+    ctx.arc(sd * w / 2, 0, w / 2, sd > 0 ? Math.PI : 0, sd > 0 ? 0 : Math.PI, sd > 0);
+    ctx.lineTo(sd * w, -Lg);
+    ctx.arc(sd * w / 2, -Lg, w / 2, sd > 0 ? 0 : Math.PI, sd > 0 ? Math.PI : 0, sd > 0);
+    ctx.lineWidth = 6 * u; ctx.strokeStyle = '#c0281f'; ctx.stroke();
+    // inbound arrow
+    ctx.beginPath(); ctx.moveTo(0, -Lg * 0.42 + 14 * u); ctx.lineTo(-11 * u, -Lg * 0.42 - 8 * u); ctx.lineTo(11 * u, -Lg * 0.42 - 8 * u);
+    ctx.closePath(); ctx.fillStyle = '#c0281f'; ctx.fill();
+    // outbound arrow
+    ctx.beginPath(); ctx.moveTo(sd * w, -Lg * 0.6 - 14 * u); ctx.lineTo(sd * w - 11 * u, -Lg * 0.6 + 8 * u); ctx.lineTo(sd * w + 11 * u, -Lg * 0.6 + 8 * u);
+    ctx.closePath(); ctx.fill();
+    // red tab at the rim
+    ctx.beginPath();
+    ctx.moveTo(-20 * u, -F + 26 * u); ctx.lineTo(20 * u, -F + 26 * u); ctx.lineTo(20 * u, -F + 2 * u);
+    ctx.lineTo(0, -F - 22 * u); ctx.lineTo(-20 * u, -F + 2 * u); ctx.closePath();
+    ctx.fillStyle = '#e0261b'; ctx.fill(); ctx.lineWidth = 2.5 * u; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+    ctx.restore();
+
+    // hub / fix
+    ctx.beginPath(); ctx.arc(0, 0, 13 * u, 0, Math.PI * 2); ctx.fillStyle = '#1b2533'; ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 5 * u, 0, Math.PI * 2); ctx.fillStyle = '#d9d2bd'; ctx.fill();
+
+    // ---- entry path (aircraft-heading frame) ----
+    if (hs.path) {
+      const pts = [];
+      const air = { x: 0, y: F * 0.80 - 40 * u };
+      const arrL = (() => { const c = Math.cos(rad(-rho)), sn = Math.sin(rad(-rho)); return { x: 0 * c - (-1) * sn, y: 0 * sn + (-1) * c }; })(); // screen-up in overlay frame
+      const k = F * 0.22;
+      const segs = [];   // cubic segments in overlay frame
+      const P = (x, y) => ({ x, y });
+      if (res.entry === 'DIRECT') {
+        const xi = sd * w * 0.78, yi = -Lg * 0.9, A = P(xi, -Lg * 0.25);
+        segs.push([P(0, 0), P(arrL.x * k, arrL.y * k), P(A.x, A.y + k), A]);
+        segs.push([A, A, P(xi, yi), P(xi, yi)]);
+        segs.push([P(xi, yi), P(xi, yi - w * 0.55), P(sd * w * 0.12, yi - w * 0.55), P(sd * w * 0.12, yi)]);
+        segs.push([P(sd * w * 0.12, yi), P(sd * w * 0.12, yi), P(sd * w * 0.04, -Lg * 0.1), P(0, 0)]);
+      } else if (res.entry === 'TEARDROP') {
+        const dir = P(sd * Math.sin(rad(30)), -Math.cos(rad(30)));
+        const T0 = P(dir.x * F * 0.12, dir.y * F * 0.12), T1 = P(dir.x * Lg * 1.05, dir.y * Lg * 1.05);
+        segs.push([P(0, 0), P(arrL.x * k, arrL.y * k), P(T0.x - dir.x * k * 0.5, T0.y - dir.y * k * 0.5), T0]);
+        segs.push([T0, T0, T1, T1]);
+        const E = P(0, -Lg * 0.55);
+        segs.push([T1, P(T1.x + dir.x * k, T1.y + dir.y * k), P(-sd * w * 0.25, E.y - k * 1.1), E]);
+        segs.push([E, E, P(0, 0), P(0, 0)]);
+      } else {
+        const x = -sd * w * 0.6, Q = P(x, -Lg * 0.25), Q2 = P(x, -Lg);
+        segs.push([P(0, 0), P(arrL.x * k, arrL.y * k), P(Q.x, Q.y + k), Q]);
+        segs.push([Q, Q, Q2, Q2]);
+        const E = P(sd * w * 0.05, -Lg * 0.35);
+        segs.push([Q2, P(x, -Lg - k), P(sd * w * 1.1, -Lg - k * 0.2), P(sd * w * 0.35, -Lg * 0.6)]);
+        segs.push([P(sd * w * 0.35, -Lg * 0.6), P(sd * w * 0.2, -Lg * 0.5), P(0, -Lg * 0.38), P(0, -Lg * 0.25)]);
+        segs.push([P(0, -Lg * 0.25), P(0, -Lg * 0.25), P(0, 0), P(0, 0)]);
+      }
+      const col = res.entry === 'DIRECT' ? '#14a84a' : res.entry === 'TEARDROP' ? '#f08c00' : '#0f8fd0';
+      ctx.beginPath(); ctx.moveTo(air.x, air.y); ctx.lineTo(0, 0);
+      segs.forEach(sg => { const b = toS(sg[1].x, sg[1].y), c = toS(sg[2].x, sg[2].y), d = toS(sg[3].x, sg[3].y); ctx.bezierCurveTo(b.x, b.y, c.x, c.y, d.x, d.y); });
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.lineWidth = 8 * u; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.setLineDash([]); ctx.stroke();
+      ctx.lineWidth = 4.5 * u; ctx.strokeStyle = col; ctx.setLineDash([18 * u, 12 * u]); ctx.lineDashOffset = -dashT * u; ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+    }
+    ctx.restore();
+
+    // ---- fixed heading index + caption ----
+    ctx.save(); ctx.translate(cx, cy - Rc - 4 * u);
+    ctx.beginPath(); ctx.moveTo(0, 30 * u); ctx.lineTo(-20 * u, -6 * u); ctx.lineTo(20 * u, -6 * u); ctx.closePath();
+    ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 3 * u; ctx.strokeStyle = '#0c1a15'; ctx.stroke();
+    ctx.restore();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#e8eef8';
+    ctx.font = font('700', 22); ctx.fillText('AIRCRAFT HEADING', cx, cy - Rc - 14 * u);
+    ctx.font = font('800', 30); ctx.fillText(show360(hs.hdg) + '°', cx, cy - Rc - 40 * u);
+    // radial caption at bottom
+    ctx.textBaseline = 'top'; ctx.font = font('700', 24); ctx.fillStyle = '#ff6b5e';
+    ctx.fillText('HOLDING RADIAL ' + show360(hs.rad) + '°  ·  INBOUND ' + show360(res.inbound) + '°', cx, cy + Rc + 14 * u);
+    return res;
+  }
+
+  function sync(res) {
+    document.getElementById('hHdg').value = show360(hs.hdg);
+    document.getElementById('hRad').value = show360(hs.rad);
+    const e = document.getElementById('hEntry');
+    e.textContent = res.entry; e.className = 'big ' + res.entry.toLowerCase();
+    const side = hs.turns === 'L' ? 'left' : 'right';
+    const rel = res.d === 0 ? '0°' : (res.d > 0 ? '+' : '−') + Math.abs(res.d) + '°';
+    document.getElementById('hRel').textContent = rel;
+    document.getElementById('hIn').textContent = show360(res.inbound) + '°';
+    document.getElementById('hOut').textContent = show360(res.outbound) + '°';
+    document.getElementById('hTd').textContent = show360(res.teardrop) + '°';
+    document.getElementById('hTdBox').classList.toggle('dim', res.entry !== 'TEARDROP');
+    let why;
+    if (res.entry === 'DIRECT') why = 'Cross the fix and turn <b>' + side + '</b> to the outbound heading <b>' + show360(res.outbound) + '°</b>, then fly the pattern.';
+    else if (res.entry === 'TEARDROP') why = 'Cross the fix, turn to <b>' + show360(res.teardrop) + '°</b> (30° toward the holding side) for about 1 minute, then turn <b>' + side + '</b> to intercept the inbound course <b>' + show360(res.inbound) + '°</b>.';
+    else why = 'Cross the fix, turn to the outbound heading <b>' + show360(res.outbound) + '°</b> on the non-holding side for about 1 minute, then turn <b>' + (side === 'right' ? 'left' : 'right') + '</b> back toward the holding side to intercept the inbound course <b>' + show360(res.inbound) + '°</b> or return to the fix.';
+    document.getElementById('hWhy').innerHTML = why;
+    const wn = document.getElementById('hWarn');
+    wn.hidden = !res.nearBoundary;
+    wn.textContent = res.nearBoundary ? 'Within 5° of a sector line. The AIM allows either adjoining entry here.' : '';
+    document.querySelectorAll('#hTurns button').forEach(b => b.classList.toggle('on', b.dataset.v === hs.turns));
+    document.getElementById('hPath').checked = hs.path;
+    try { localStorage.setItem('g3x-hold-entry', JSON.stringify(hs)); } catch (e) {}
+  }
+
+  function visible() { return document.body.classList.contains('show-hold'); }
+  function render() { if (!visible()) return; sync(draw()); }
+  function tick() {
+    if (!visible() || !hs.path) { animOn = false; return; }
+    dashT = (dashT + 1.2) % 3000; draw(); requestAnimationFrame(tick);
+  }
+  function startAnim() { if (!animOn && visible() && hs.path) { animOn = true; requestAnimationFrame(tick); } }
+  function update() { render(); startAnim(); }
+
+  // steppers / inputs
+  document.querySelectorAll('.hstep button').forEach(b => b.addEventListener('click', () => {
+    const f = b.dataset.hf, dlt = Number(b.dataset.d);
+    let v = hs[f] + dlt;
+    v = dlt > 0 ? Math.floor(v / 5) * 5 : Math.ceil(v / 5) * 5;  // snap to multiples of 5
+    if (v === hs[f]) v += dlt;
+    hs[f] = norm360(v); update();
+  }));
+  [['hHdg', 'hdg'], ['hRad', 'rad']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    const apply = (final) => { const v = parseInt(el.value, 10); if (!isFinite(v)) return; hs[key] = norm360(v); if (final) update(); else sync(draw()); };
+    el.addEventListener('input', () => apply(false));
+    el.addEventListener('change', () => apply(true));
+  });
+  document.getElementById('hTurns').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    hs.turns = b.dataset.v; update();
+  });
+  document.getElementById('hPath').addEventListener('change', e => { hs.path = e.target.checked; update(); });
+
+  // drag: card ring rotates heading; red tab / overlay rotates the radial
+  let drag = null;
+  function ptr(e) {
+    const r = cv.getBoundingClientRect(), sc = cv.width / r.width;
+    const x = (e.clientX - r.left) * sc - geom.cx, y = (e.clientY - r.top) * sc - geom.cy;
+    const a = Math.atan2(x, -y) * 180 / Math.PI;
+    return { r: Math.hypot(x, y), a: (a + 360) % 360 };
+  }
+  const angDiff = (a, b) => signed(a - b);
+  cv.addEventListener('pointerdown', e => {
+    if (!geom) return;
+    const p = ptr(e);
+    const tabA = norm360(hs.rad - hs.hdg);
+    if (p.r > geom.Rc + 40 * geom.u || p.r < geom.F * 0.12) return;
+    const nearTab = Math.abs(angDiff(p.a, tabA)) < 14 && p.r > geom.F * 0.7;
+    if (nearTab) drag = { mode: 'tab' };
+    else if (p.r >= geom.Ri - 6 * geom.u) drag = { mode: 'card', a0: p.a, v0: hs.hdg };
+    else drag = { mode: 'overlay', a0: p.a, v0: hs.rad };
+    cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; e.preventDefault();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const p = ptr(e);
+    if (drag.mode === 'tab') hs.rad = norm360(hs.hdg + p.a);
+    else if (drag.mode === 'card') hs.hdg = norm360(drag.v0 - angDiff(p.a, drag.a0));
+    else hs.rad = norm360(drag.v0 + angDiff(p.a, drag.a0));
+    sync(draw()); e.preventDefault();
+  });
+  const end = () => { if (drag) { drag = null; cv.style.cursor = ''; update(); } };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+
+  document.getElementById('viewBar').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b && b.dataset.v === 'hold') window.scrollTo(0, 0);
+    setTimeout(update, 0);
+  });
+  window.addEventListener('resize', render);
+  window.addEventListener('orientationchange', () => setTimeout(render, 250));
+  window.HoldCalc.render = update;
+  window.HoldCalc.state = hs;
 })();
 </script>
 </body>
