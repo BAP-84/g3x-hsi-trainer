@@ -497,7 +497,10 @@
     ctx.font = '700 28px -apple-system, Helvetica, sans-serif';
     ctx.fillStyle = col;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(state.src, -R + 12, 52);
+    // fixed, just inside the rotating number ring (numbers sit at R-58, ~30px glyph radius) so it never touches ticks or numbers
+    const srcY = 52, inner = R - 94;
+    const srcX = Math.min(-R * 0.5, -Math.sqrt(Math.max(0, inner * inner - (srcY + 16) * (srcY + 16))));
+    ctx.fillText(state.src, srcX, srcY);
 
     ctx.restore(); // clip
 
