@@ -103,6 +103,19 @@
   .map-notes p span { color: var(--muted); }
   .map-notes .mag { color: var(--mag); }
   .map-notes .grn { color: var(--vloc); }
+  .map-notes p { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; }
+  .dragbox { display: inline-flex; align-items: center; gap: 7px; padding: 5px 9px 5px 11px; margin: 1px 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; cursor: ns-resize;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .map-notes p .dragbox { color: var(--ink); }
+  .dragbox b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .dragbox .chev { position: relative; width: 8px; height: 14px; opacity: 0.6; }
+  .dragbox .chev::before, .dragbox .chev::after { content: ''; position: absolute; left: 0; border: 4px solid transparent; }
+  .dragbox .chev::before { top: -2px; border-bottom: 5px solid var(--muted); }
+  .dragbox .chev::after { bottom: -2px; border-top: 5px solid var(--muted); }
+  .dragbox.dragging { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(61,125,255,0.35); }
+  .dragbox.dragging .chev { opacity: 1; }
+  .map-panel .drag-note { margin: 6px 4px 0; }
   /* ---- Holding entry view ---- */
   .hold-panel { display: none; width: 100%; }
   body.show-hold .wrap { display: none; }
@@ -158,10 +171,11 @@
       <div class="gauge-frame">
         <canvas id="map" width="1000" height="1000"></canvas>
       </div>
+      <p class="drag-note">Drag the <b class="hd">heading</b> or <b class="cs">course</b> box up or down to change it</p>
       <div class="map-notes" id="mapNotes">
-        <p>Course / radial <b id="nCrs" class="mag">247°</b> — dashed line through the VOR</p>
+        <p>Course / radial <span class="dragbox" data-drag="crs" title="Drag up or down"><b id="nCrs" class="mag">247°</b><i class="chev"></i></span> <span>— dashed line through the VOR</span></p>
         <p>Flag <b id="nFlg">TO</b> <span id="nFlgHint"></span></p>
-        <p>Heading <b id="nHdg">237°</b> — airplane nose points this way</p>
+        <p>Heading <span class="dragbox" data-drag="hdg" title="Drag up or down"><b id="nHdg">237°</b><i class="chev"></i></span> <span>— airplane nose points this way</span></p>
         <p>CDI <b id="nCdi">CENTER</b> <span id="nCdiHint"></span></p>
       </div>
     </div>
@@ -752,6 +766,35 @@
     render();
   });
 
+
+  // Map tab: drag the heading / course boxes vertically (up = +5, down = -5, ~14 px per step)
+  document.querySelectorAll('.dragbox').forEach(box => {
+    let d = null;
+    const STEP_PX = 14;
+    box.addEventListener('pointerdown', e => {
+      if (e.button !== undefined && e.button > 0) return;
+      const key = box.dataset.drag;
+      d = { key, y0: e.clientY, v0: state[key], n: 0 };
+      box.setPointerCapture(e.pointerId); box.classList.add('dragging'); e.preventDefault();
+    });
+    box.addEventListener('pointermove', e => {
+      if (!d) return;
+      const raw = (d.y0 - e.clientY) / STEP_PX;            // up = positive
+      if (Math.abs(raw - d.n) < 0.75) return;              // hysteresis: no jitter at a step boundary
+      const n = Math.round(raw);
+      if (n === d.n) return;
+      d.n = n;
+      let v;
+      if (n > 0) v = Math.floor(d.v0 / 5) * 5 + n * 5;
+      else if (n < 0) v = Math.ceil(d.v0 / 5) * 5 + n * 5;
+      else v = d.v0;
+      state[d.key] = wrap(v);
+      render(); e.preventDefault();
+    });
+    const end = () => { if (d) { d = null; box.classList.remove('dragging'); render(); } };
+    box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+    box.addEventListener('touchmove', e => { if (d) e.preventDefault(); }, { passive: false });
+  });
 
   // Drag on the HSI: outside the compass card turns the heading card, inside it turns the selected course.
   let hsiDrag = null;
