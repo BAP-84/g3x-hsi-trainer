@@ -1,4 +1,4 @@
-const CACHE = 'g3x-hsi-trainer-v8';
+const CACHE = 'g3x-hsi-trainer-v9';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './apple-touch-icon.png'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));

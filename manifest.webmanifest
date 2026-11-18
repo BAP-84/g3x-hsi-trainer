@@ -1,6 +1,6 @@
 {
   "name": "Electronic Instrument Training Aid",
-  "short_name": "Trainer",
+  "short_name": "IFR Trainer",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
